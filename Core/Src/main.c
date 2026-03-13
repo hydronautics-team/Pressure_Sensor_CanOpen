@@ -37,10 +37,15 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 // Макросы для расчетов сырого давления
-#define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z) ((adc_for_pressure_middle-adc_z)*33150/4096)
-#define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*30*6895*37/(40*27))
+#define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z) ((adc_for_pressure_middle-adc_z)*16575/2048)
+#define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*6895/4*37/9)
+// #define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*6895*37/(4*9))
+#define PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales) (voltage_conv_pascales/(10*981))
+// Старый вариант
+/* #define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z) ((adc_for_pressure_middle-adc_z)*33150/4096)
+#define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*3*6895*37/(4*27))
 #define PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales) (voltage_conv_pascales*100/(1000*981))
-#define DEPTH_MM_WITH_TERMOCOMP_(depth_mm, temperature) (depth_mm - )
+#define DEPTH_MM_WITH_TERMOCOMP_(depth_mm, temperature) (depth_mm - ) */
 // Макросы для расчётов температуры
 #define ADC_CONV_VOLTAGE_(adc_for_temperature_middle) (adc_for_temperature_middle*33120/4096)
 #define VOLTAGE_CONV_TEMPERATURE_(adc_conv_voltage_for_temperature) ((adc_conv_voltage_for_temperature - 5000)*10)
@@ -58,16 +63,19 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 int adc_for_pressure = 0;
 int adc_for_temperature = 0;
-uint32_t adc[LENGHT_OF_THE_ARRAY] = {0};
+uint32_t adc[LENGHT_OF_THE_ARRAY * 2] = {0};
 int adc_for_pressure_middle = 0;
 int adc_for_temperature_middle = 0;
 int adc_z = 0;
+int adc_z_flag = 0;
 int adc_flag = 0;
+int half_adc_flag = 0;
 int tx_flag = 0;
 int tx_err = 0;
-uint8_t UART_depth[5] = {0};
+//uint8_t UART_depth[5] = {0};
 int tx_count = 0;
-char trans_str[50] = {0,};
+char trans_str[100] = {0,};
+uint8_t UART_depth[6] = {0,};
 
 // Преобразования по шагам для сырого давления
 int adc_conv_volt_for_pressure = 0;
@@ -130,14 +138,15 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADCEx_Calibration_Start(&hadc1);
+  HAL_Delay(1000);
   HAL_TIM_Base_Start(&htim3);
-  HAL_ADC_Start_DMA(&hadc1, adc, LENGHT_OF_THE_ARRAY);
+  HAL_ADC_Start_DMA(&hadc1, adc, LENGHT_OF_THE_ARRAY * 2);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  do{
+  /* do{
   if(adc_flag) {
 	  for(int i = 0; i<LENGHT_OF_THE_ARRAY; i+=2) {
 		  adc_z += adc[i];
@@ -147,10 +156,36 @@ int main(void)
   }
   HAL_Delay(10);
   }while(!adc_flag);
-  adc_z /= ((LENGHT_OF_THE_ARRAY)/2);
+  adc_z /= ((LENGHT_OF_THE_ARRAY)/2); */
   while (1)
   {
 	  if(adc_flag) {
+		  adc_for_pressure_middle = 0;
+		  adc_for_temperature_middle = 0;
+		  if(!half_adc_flag) {
+			  for(int counter = 0; counter < LENGHT_OF_THE_ARRAY; counter++) {
+				  if(counter % 2 == 0) {
+					  adc_for_pressure_middle += adc[counter];
+				  } else {
+					  adc_for_temperature_middle += adc[counter];
+				  }
+			  }
+		  } else {
+			  for(int counter = LENGHT_OF_THE_ARRAY; counter < LENGHT_OF_THE_ARRAY * 2; counter++) {
+				  if(counter % 2 == 0) {
+					  adc_for_pressure_middle += adc[counter];
+				  } else {
+					  adc_for_temperature_middle += adc[counter];
+				  }
+			  }
+		  }
+		  adc_for_pressure_middle /= LENGHT_OF_THE_ARRAY/2;
+		  adc_for_temperature_middle /= LENGHT_OF_THE_ARRAY/2;
+		  if(!adc_z_flag) {
+			  adc_z = adc_for_pressure_middle;
+			  adc_z_flag = 1;
+		  }
+		  /* Старая часть
 		  adc_for_pressure_middle = 0;
 		  adc_for_temperature_middle = 0;
 		  for(int counter = 0; counter < LENGHT_OF_THE_ARRAY; counter++) {
@@ -161,7 +196,7 @@ int main(void)
 			  }
 		  }
 		  adc_for_pressure_middle /= LENGHT_OF_THE_ARRAY/2;
-		  adc_for_temperature_middle /= LENGHT_OF_THE_ARRAY/2;
+		  adc_for_temperature_middle /= LENGHT_OF_THE_ARRAY/2; */
 
 		  // Считаем сырое давление
 		  adc_conv_volt_for_pressure = VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z);
@@ -179,18 +214,23 @@ int main(void)
 
 		  if(!tx_flag)
 		  {
-			  //HAL_UART_Transmit_IT(&huart1, UART_depth, 5);
+			  // Для отладки
+			  /* //HAL_UART_Transmit_IT(&huart1, UART_depth, 5);
 			  //snprintf(depth, 5, "%lu", depth_mm);
-			  int i = snprintf(trans_str, 50, "DEPTH_MM %d, TEMPERATURE %d\n", depth_mm, temperature);
+			  int i = snprintf(trans_str, 100, "DEPTH_MM %d, TEMPERATURE %d, ADC_Z %d, ADC_FOR_PRESS_MIDDLE %d, PRESSURE %d\n", depth_mm, temperature, adc_z, adc_for_pressure_middle, adc_conv_volt_for_pressure);
 			  //HAL_UART_Transmit_IT(&huart1, (uint8_t*)depth, 5);
-			  HAL_UART_Transmit_IT(&huart1, (uint8_t*)trans_str, i);
+			  HAL_UART_Transmit_IT(&huart1, (uint8_t*)trans_str, i); */
+			  UART_depth[0] = 0xFF;
+			  memcpy(&depth_mm, &UART_depth[1], 4);
+     		  UART_depth[5] = Calculate_CRC8(UART_depth, 4);
+			  HAL_UART_Transmit_IT(&huart1, UART_depth, 6);
 			  tx_flag = 1;
 			  tx_count++;
 	 	  		}else
 	 	  		{
 	 	  			tx_err++;
 	 	  		}
-	 	  	  }
+	  	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -428,7 +468,13 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
+	half_adc_flag = 1;
 	adc_flag = 1;
+}
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef* hadc) {
+	adc_flag = 1;
+	half_adc_flag = 0;
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle) {
