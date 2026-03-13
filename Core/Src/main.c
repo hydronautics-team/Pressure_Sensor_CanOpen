@@ -41,8 +41,6 @@
 #define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*6895/4*37/9)
 // #define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*6895*37/(4*9))
 #define PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales) (voltage_conv_pascales/(10*981))
-#define DEPTH_MM_WITH_TERMOCOMP_(depth_mm, temperature) (depth_mm - )
-
 // Старый вариант
 /* #define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z) ((adc_for_pressure_middle-adc_z)*33150/4096)
 #define VOLTAGE_CONV_PASCALES_(adc_conv_volt) (adc_conv_volt*3*6895*37/(4*27))
@@ -74,9 +72,10 @@ int adc_flag = 0;
 int half_adc_flag = 0;
 int tx_flag = 0;
 int tx_err = 0;
-uint8_t UART_depth[5] = {0};
+//uint8_t UART_depth[5] = {0};
 int tx_count = 0;
 char trans_str[100] = {0,};
+uint8_t UART_depth[6] = {0,};
 
 // Преобразования по шагам для сырого давления
 int adc_conv_volt_for_pressure = 0;
@@ -215,11 +214,16 @@ int main(void)
 
 		  if(!tx_flag)
 		  {
-			  //HAL_UART_Transmit_IT(&huart1, UART_depth, 5);
+			  // Для отладки
+			  /* //HAL_UART_Transmit_IT(&huart1, UART_depth, 5);
 			  //snprintf(depth, 5, "%lu", depth_mm);
 			  int i = snprintf(trans_str, 100, "DEPTH_MM %d, TEMPERATURE %d, ADC_Z %d, ADC_FOR_PRESS_MIDDLE %d, PRESSURE %d\n", depth_mm, temperature, adc_z, adc_for_pressure_middle, adc_conv_volt_for_pressure);
 			  //HAL_UART_Transmit_IT(&huart1, (uint8_t*)depth, 5);
-			  HAL_UART_Transmit_IT(&huart1, (uint8_t*)trans_str, i);
+			  HAL_UART_Transmit_IT(&huart1, (uint8_t*)trans_str, i); */
+			  UART_depth[0] = 0xFF;
+			  memcpy(&depth_mm, &UART_depth[1], 4);
+     		  UART_depth[5] = Calculate_CRC8(UART_depth, 4);
+			  HAL_UART_Transmit_IT(&huart1, UART_depth, 6);
 			  tx_flag = 1;
 			  tx_count++;
 	 	  		}else
