@@ -1,0 +1,55 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+    "name": "HydroOS",
+    // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+    "image": "seajackal/hydrodrivers:latest",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    // Remove for Windows
+    //"mounts": [
+    //   "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"
+    //],
+    // "build": {
+    //     "dockerfile": "Dockerfile",
+    //     "args": {
+    //         "USERNAME": "hydrolib",
+    //         "GID": "${localEnv:UID}",
+    //         "UID": "${localEnv:UID}"
+    //     }
+    // },
+    "runArgs": [
+        "--privileged",
+        "--security-opt",
+        "seccomp=unconfined",
+        "-v",
+        "/dev/bus/usb:/dev/bus/usb:ro" // For OpenOCD flashing/debugging
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools-extension-pack",
+                "twxs.cmake",
+                "josetr.cmake-language-support-vscode",
+                "ms-vscode.cmake-tools",
+                "ms-vscode-remote.remote-containers",
+                "ms-azuretools.vscode-docker",
+                "cschlosser.doxdocgen",
+                "xaver.clang-format",
+                "llvm-vs-code-extensions.vscode-clangd",
+                "mcu-debug.debug-tracker-vscode",
+                "marus25.cortex-debug",
+                "mcu-debug.peripheral-viewer"
+            ],
+            "settings": {
+                "clangd.arguments": [
+                    "--compile-commands-dir=build"
+                ],
+                "C_Cpp.intelliSenseEngine": "disabled",
+                "cortex-debug.armToolchainPath": "/bin", // Path to arm-none-eabi toolchain
+                "cortex-debug.gdbPath": "/bin/gdb-multiarch"
+            }
+        }
+    }
+}
