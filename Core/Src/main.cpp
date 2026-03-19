@@ -8,18 +8,7 @@
 }
 #endif
 
-#define LENGHT_OF_THE_ARRAY 200
-#define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z)                   \
-  ((adc_for_pressure_middle - adc_z) * 16575 / 2048)
-#define VOLTAGE_CONV_PASCALES_(adc_conv_volt)                                  \
-  (adc_conv_volt * 6895 / 4 * 37 / 9)
-#define PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales)                         \
-  (voltage_conv_pascales / (10 * 981))
-
-#define ADC_CONV_VOLTAGE_(adc_for_temperature_middle)                          \
-  (adc_for_temperature_middle * 33120 / 4096)
-#define VOLTAGE_CONV_TEMPERATURE_(adc_conv_voltage_for_temperature)            \
-  ((adc_conv_voltage_for_temperature - 5000) * 10)
+#include "pressure_wrapper.h"
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
@@ -27,35 +16,8 @@ DMA_HandleTypeDef hdma_adc1;
 TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart1;
 
-/* USER CODE BEGIN PV */
-int adc_for_pressure = 0;
-int adc_for_temperature = 0;
-uint32_t adc[LENGHT_OF_THE_ARRAY * 2] = {0};
-int adc_for_pressure_middle = 0;
-int adc_for_temperature_middle = 0;
-int adc_z = 0;
-int adc_z_flag = 0;
-int adc_flag = 0;
-int half_adc_flag = 0;
-int tx_flag = 0;
-int tx_err = 0;
-// uint8_t UART_depth[5] = {0};
-int tx_count = 0;
-char trans_str[100] = {
-    0,
-};
-uint8_t UART_depth[6] = {
-    0,
-};
+PressureWrapper sensor(hadc1, htim3);
 
-// Преобразования по шагам для сырого давления
-int adc_conv_volt_for_pressure = 0;
-int voltage_conv_pascales = 0;
-int depth_mm = 0;
-
-// Преобразования по шагам для температуры
-int adc_conv_voltage_for_temperature = 0;
-int temperature = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -108,62 +70,13 @@ int main(void) {
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_ADCEx_Calibration_Start(&hadc1);
-  HAL_Delay(1000);
-  HAL_TIM_Base_Start(&htim3);
-  HAL_ADC_Start_DMA(&hadc1, adc, LENGHT_OF_THE_ARRAY * 2);
+  sensor.init();
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 
   while (1) {
-    if (adc_flag) {
-      adc_for_pressure_middle = 0;
-      adc_for_temperature_middle = 0;
-      if (!half_adc_flag) {
-        for (int counter = 0; counter < LENGHT_OF_THE_ARRAY; counter++) {
-          if (counter % 2 == 0) {
-            adc_for_pressure_middle += adc[counter];
-          } else {
-            adc_for_temperature_middle += adc[counter];
-          }
-        }
-      } else {
-        for (int counter = LENGHT_OF_THE_ARRAY;
-             counter < LENGHT_OF_THE_ARRAY * 2; counter++) {
-          if (counter % 2 == 0) {
-            adc_for_pressure_middle += adc[counter];
-          } else {
-            adc_for_temperature_middle += adc[counter];
-          }
-        }
-      }
-      adc_for_pressure_middle /= LENGHT_OF_THE_ARRAY / 2;
-      adc_for_temperature_middle /= LENGHT_OF_THE_ARRAY / 2;
-      if (!adc_z_flag) {
-        adc_z = adc_for_pressure_middle;
-        adc_z_flag = 1;
-      }
+    
+    sensor.poll();
 
-      adc_conv_volt_for_pressure =
-          VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z);
-      voltage_conv_pascales =
-          VOLTAGE_CONV_PASCALES_(adc_conv_volt_for_pressure);
-      depth_mm = PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales);
-
-      // Считаем температуру
-      adc_conv_voltage_for_temperature =
-          ADC_CONV_VOLTAGE_(adc_for_temperature_middle);
-      temperature = VOLTAGE_CONV_TEMPERATURE_(adc_conv_voltage_for_temperature);
-      if (temperature < -40000)
-        temperature = -40000;
-      if (temperature > 125000)
-        temperature = 125000;
-
-      // Заканчиваем преобразования и выставляем флаг прерывания в "0"
-      adc_flag = 0;
-    }
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -377,18 +290,15 @@ static void MX_GPIO_Init(void) {
 
 /* USER CODE BEGIN 4 */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-  half_adc_flag = 1;
-  adc_flag = 1;
+  sensor.setFullConvFlag();
 }
 
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
-  adc_flag = 1;
-  half_adc_flag = 0;
+  sensor.setHalfConvFlag();
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle) {
   if (UartHandle == &huart1) {
-    tx_flag = 0;
   }
 }
 /* USER CODE END 4 */
