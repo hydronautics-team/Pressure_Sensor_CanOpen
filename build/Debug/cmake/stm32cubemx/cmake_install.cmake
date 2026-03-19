@@ -1,4 +1,4 @@
-# Install script for directory: /workspaces/Pressure_Sensor_Processing/cmake/stm32cubemx
+# Install script for directory: /home/corp.1440.space_n.bulatov/Pressure_Sensor_Processing/cmake/stm32cubemx
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -34,6 +34,6 @@ endif()
 
 # Set default install directory permissions.
 if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "/usr/local/bin/arm-none-eabi-objdump")
+  set(CMAKE_OBJDUMP "/usr/bin/arm-none-eabi-objdump")
 endif()
 

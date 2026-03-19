@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
   "Pressure_Sensor_SAUVC.map"
-  "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/main.c.obj"
-  "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/main.c.obj.d"
+  "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/main.cpp.obj"
+  "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/main.cpp.obj.d"
   "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/stm32f1xx_hal_msp.c.obj"
   "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/stm32f1xx_hal_msp.c.obj.d"
   "CMakeFiles/Pressure_Sensor_SAUVC.dir/Core/Src/stm32f1xx_it.c.obj"
@@ -16,6 +16,6 @@ file(REMOVE_RECURSE
 )
 
 # Per-language clean rules from dependency scanning.
-foreach(lang ASM C)
+foreach(lang ASM C CXX)
   include(CMakeFiles/Pressure_Sensor_SAUVC.dir/cmake_clean_${lang}.cmake OPTIONAL)
 endforeach()
