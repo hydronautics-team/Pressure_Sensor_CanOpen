@@ -33,6 +33,7 @@ enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
+add_subdirectory(Drivers/Hydrodrivers)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -63,6 +64,10 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
+    HydrodriversUART 
+    HydrodriversGPIO
+    HydrolibBusDatalink 
+    HydrolibBusApplication
 
     # Add user defined libraries
 )

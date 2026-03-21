@@ -1,0 +1,4 @@
+[submodule "Drivers/Hydrodrivers"]
+	path = Drivers/Hydrodrivers
+	url = https://github.com/SeaJackal/Hydrodrivers.git
+	branch = main

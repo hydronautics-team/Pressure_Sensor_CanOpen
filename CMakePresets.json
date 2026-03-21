@@ -8,6 +8,15 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
 		    "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
             "cacheVariables": {
+                "CMAKE_C_STANDARD": "11",
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "BUILD_TESTS": "OFF",
+                "COVERAGE": "OFF",
+                "LOGGER_TYPE": "none",
+                "MCU_FAMILY": "F1",
+                "CMAKE_C_FLAGS": "-DSTM32F103xB",
+                "CMAKE_CXX_FLAGS": "-DSTM32F103xB"
             }
         },
         {
