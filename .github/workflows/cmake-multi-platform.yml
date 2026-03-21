@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  Build-F4:
+  Build-F1:
     runs-on: ubuntu-latest
     container:
       image: seajackal/hydrodrivers:latest
