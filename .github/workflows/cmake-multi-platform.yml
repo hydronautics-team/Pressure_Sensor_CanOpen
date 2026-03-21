@@ -1,0 +1,59 @@
+name: Building
+run-name: Building
+on:
+  push:
+    branches: [ '*' ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  Build-F4:
+    runs-on: ubuntu-latest
+    container:
+      image: seajackal/hydrodrivers:latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Добавленный шаг для устранения ошибки безопасности Git
+      - name: Mark workspace as safe for Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      
+      - name: Update submodules
+        run: git submodule update --init --recursive
+      
+      - name: Configure CMake
+        run: cmake --preset Debug
+      
+      - name: Build
+        run: cmake --build ./build/Debug
+      
+      # Поиск собранных файлов (пример, адаптируйте под свои пути)
+      - name: Find firmware files
+        id: find_files
+        run: |
+          BIN_FILE=$(find build -name "*.bin" | head -n 1)
+          ELF_FILE=$(find build -name "*.elf" | head -n 1)
+          echo "bin=$BIN_FILE" >> $GITHUB_OUTPUT
+          echo "elf=$ELF_FILE" >> $GITHUB_OUTPUT
+          echo "Found BIN: $BIN_FILE"
+          echo "Found ELF: $ELF_FILE"
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-f4
+          path: |
+            ${{ steps.find_files.outputs.bin }}
+            ${{ steps.find_files.outputs.elf }}
+          if-no-files-found: error
+      
+      - name: Create Release and Upload Assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.find_files.outputs.bin }}
+            ${{ steps.find_files.outputs.elf }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
