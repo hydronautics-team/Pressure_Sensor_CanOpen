@@ -11,105 +11,178 @@ extern "C" {
 #endif
 
 #include <array>
-#include <stdint.h>
+#include <atomic>
+#include <cstdint>
 
+/**
+ *  Константы преобразований (замена макросов)
+ */
+namespace PressureConversions {
+    // Преобразование среднего значения АЦП (без учёта атмосферного давления) в напряжение (мВ)
+    constexpr uint32_t adcToVoltage(uint32_t adc_press, uint32_t adc_z) noexcept {
+        return (adc_press - adc_z) * 16575u / 2048u;
+    }
 
-#define LENGHT_OF_THE_ARRAY 200
-#define VOLTAGE_WITHOUT_ATM_(adc_for_pressure_middle, adc_z)                   \
-  ((adc_for_pressure_middle - adc_z) * 16575 / 2048)
-#define VOLTAGE_CONV_PASCALES_(adc_conv_volt)                                  \
-  (adc_conv_volt * 6895 / 4 * 37 / 9)
-#define PASCALES_CONV_DEPTH_MM_(voltage_conv_pascales)                         \
-  (voltage_conv_pascales / (10 * 981))
+    // Преобразование напряжения (мВ) в давление (Па)
+    constexpr uint32_t voltageToPascals(uint32_t voltage_mv) noexcept {
+        return voltage_mv * 6895u / 4u * 37u / 9u;
+    }
 
-#define ADC_CONV_VOLTAGE_(adc_for_temperature_middle)                          \
-  (adc_for_temperature_middle * 33120 / 4096)
-#define VOLTAGE_CONV_TEMPERATURE_(adc_conv_voltage_for_temperature)            \
-  ((adc_conv_voltage_for_temperature - 5000) * 10)
+    // Преобразование давления (Па) в глубину (мм)
+    constexpr uint32_t pascalsToDepthMm(uint32_t pascals) noexcept {
+        return pascals / (10u * 981u);   // 10 * 981 = 9810
+    }
 
+    // Преобразование среднего значения АЦП температуры в напряжение (мВ)
+    constexpr uint32_t tempAdcToVoltage(uint32_t adc_temp) noexcept {
+        return adc_temp * 33120u / 4096u;
+    }
+
+    // Преобразование напряжения температуры (мВ) в температуру (десятые доли градуса Цельсия)
+    constexpr int32_t voltageToTempCelsius(uint32_t voltage_mv) noexcept {
+        // формула: (напряжение - 5000) * 10
+        return (static_cast<int32_t>(voltage_mv) - 5000) * 10;
+    }
+} // namespace PressureConversions
 
 class PressureWrapper {
-private:
-
 public:
-    PressureWrapper(ADC_HandleTypeDef &hadc, TIM_HandleTypeDef &htim) noexcept
-        : hadc_{hadc}, htim_{htim} {}
-    
-    void init() noexcept {
-        
-      HAL_ADCEx_Calibration_Start(&hadc_);
-      HAL_Delay(1000);
-      HAL_TIM_Base_Start(&htim_);
-      HAL_ADC_Start_DMA(&hadc_, adcRaw_.data(), LenAdcBuf_ * 2);
+    // Конструктор
+    PressureWrapper(ADC_HandleTypeDef& hadc, TIM_HandleTypeDef& htim) noexcept
+        : hadc_(hadc), htim_(htim) {}
+
+    // Инициализация: калибровка АЦП, запуск таймера и DMA
+    bool init() noexcept {
+        // Калибровка АЦП (однополярный режим для большинства STM32)
+        if (HAL_ADCEx_Calibration_Start(&hadc_) != HAL_OK) {
+            return false;
+        }
+
+        HAL_Delay(100);
+
+        if (HAL_TIM_Base_Start(&htim_) != HAL_OK) {
+            return false;
+        }
+
+        // Запуск DMA: буфер adcRaw_ объявлен как uint16_t, приводим к uint32_t*
+        if (HAL_ADC_Start_DMA(&hadc_, reinterpret_cast<uint32_t*>(adcRaw_.data()), kAdcBufferSize * 2) != HAL_OK) {
+            return false;
+        }
+
+        return true;
     }
-    void poll() {
-        if (fullConvDone_) {
-            if(halfConvDone_)
-                adcProcess(true);
-            else
-                adcProcess(false);
-            if(isFirst_) {
-                adc_z_ = pressSum;
+
+    // Опрос: вызывать в основном цикле
+    void poll() noexcept {
+        // Проверяем, завершён ли полный буфер (флаг атомарный)
+        if (fullConvDone_.load(std::memory_order_acquire)) {
+            // Определяем, какая половина буфера заполнена (если обе, то обрабатываем полную)
+            bool half = halfConvDone_.load(std::memory_order_acquire);
+
+            // Обрабатываем данные буфера (используется локальное копирование)
+            adcProcess(half);
+
+            // Для первого набора данных сохраняем нулевое давление (атмосферное)
+            if (isFirst_) {
+                adc_z_ = pressSum_;   // среднее значение АЦП для нулевого давления
                 isFirst_ = false;
             }
-            
-            adcVoltage_ = VOLTAGE_WITHOUT_ATM_(pressSum, adc_z_);
-            adcPasc_ = VOLTAGE_CONV_PASCALES_(adcVoltage_);
-            depthMm_ = PASCALES_CONV_DEPTH_MM_(adcPasc_);
-        }
-      
-    }
-    
-    void setHalfConvFlag() { 
-        halfConvDone_ = 1;
-        fullConvDone_ = 1; 
-    }
-    void setFullConvFlag() { fullConvDone_ = 1; }
-  
-    ~PressureWrapper() = default;
-  
-private:
 
-    void adcProcess(bool isHalf) {
-        uint8_t start = 0;
-        uint8_t end = 0;
-        if(isHalf) {
-            start = 0;
-            end = LenAdcBuf_;
-            halfConvDone_ = 0;
-            
-        } else {
-            start = LenAdcBuf_;
-            end = LenAdcBuf_*2;
-            fullConvDone_ = 0;
+            // Вычисляем физические величины
+            adcVoltage_ = PressureConversions::adcToVoltage(pressSum_, adc_z_);
+            adcPascals_ = PressureConversions::voltageToPascals(adcVoltage_);
+            depthMm_ = PressureConversions::pascalsToDepthMm(adcPascals_);
+
+            // Если температура используется, вычисляем и её
+            tempMilliCelsius_ = PressureConversions::voltageToTempCelsius(
+                PressureConversions::tempAdcToVoltage(tempSum_)
+            );
+
+            // Сбрасываем флаг полного завершения (после того как данные обработаны)
+            fullConvDone_.store(false, std::memory_order_release);
         }
-        for (uint8_t i = start; i < end; i++) {
-              if (i % 2) {
-                  tempSum += adcRaw_[i];
-              } else {
-                  pressSum += adcRaw_[i];
-              }
-          }
-          pressSum /= LenAdcBuf_/2;
-          tempSum /= LenAdcBuf_/2;
-        
     }
-    ADC_HandleTypeDef &hadc_;
-    TIM_HandleTypeDef &htim_;
-    
-    static constexpr uint8_t LenAdcBuf_{200};
-    std::array<uint32_t, LenAdcBuf_ * 2> adcRaw_{0};
-    
-    uint32_t pressSum = 0;
-    uint32_t tempSum = 0;
-    uint32_t adcVoltage_ = 0;
-    uint32_t adcPasc_ = 0;
-    
-    uint32_t adc_z_ = 0;
-    //флаги прерываний
-    volatile bool halfConvDone_ = false;
-    volatile bool fullConvDone_ = false;
+
+    // Геттеры
+    uint32_t getDepthMm() const noexcept { return depthMm_; }
+    uint32_t getPressurePascals() const noexcept { return adcPascals_; }
+    uint32_t getAdcVoltage() const noexcept { return adcVoltage_; }
+    int32_t  getTemperatureMilliCelsius() const noexcept { return tempMilliCelsius_; }
+
+    // Методы, вызываемые из обработчиков прерываний
+    void setHalfConvFlag() noexcept {
+        halfConvDone_.store(true, std::memory_order_release);
+        fullConvDone_.store(true, std::memory_order_release);
+    }
+
+    void setFullConvFlag() noexcept {
+        fullConvDone_.store(true, std::memory_order_release);
+    }
+
+    // Доступ к дескриптору АЦП для идентификации в обработчиках (опционально)
+    ADC_HandleTypeDef& getHadc() noexcept { return hadc_; }
+
+    ~PressureWrapper() = default;
+
+private:
+    // Обработка данных из DMA-буфера
+    void adcProcess(bool isHalf) noexcept {
+        // Определяем диапазон индексов в буфере adcRaw_
+        const size_t start = isHalf ? 0 : kAdcBufferSize;
+        const size_t end   = isHalf ? kAdcBufferSize : kAdcBufferSize * 2;
+
+        uint32_t pressSumLocal = 0;
+        uint32_t tempSumLocal  = 0;
+
+        // Суммируем значения из указанной половины буфера
+        for (size_t i = start; i < end; ++i) {
+            // Чётные индексы — канал давления, нечётные — температуры
+            if ((i & 1) == 0) {
+                pressSumLocal += adcRaw_[i];
+            } else {
+                tempSumLocal += adcRaw_[i];
+            }
+        }
+
+        // Вычисляем среднее значение для каждой половины буфера
+        const size_t halfCount = kAdcBufferSize / 2;
+        pressSum_ = pressSumLocal / halfCount;
+        tempSum_  = tempSumLocal / halfCount;
+
+        // Сбрасываем флаги (только тот, который был обработан)
+        if (isHalf) {
+            halfConvDone_.store(false, std::memory_order_release);
+        } else {
+            fullConvDone_.store(false, std::memory_order_release);
+        }
+    }
+
+    // Дескрипторы периферии
+    ADC_HandleTypeDef& hadc_;
+    TIM_HandleTypeDef& htim_;
+
+    // Параметры DMA
+    static constexpr size_t kAdcBufferSize = 200;          // количество отсчётов на канал
+    // Буфер АЦП: 16-битные значения от DMA (обычно для 12-битных АЦП)
+    std::array<uint16_t, kAdcBufferSize * 2> adcRaw_{};
+
+    // Атомарные флаги для синхронизации с прерываниями
+    std::atomic<bool> halfConvDone_{false};
+    std::atomic<bool> fullConvDone_{false};
+
+    // Состояние
     bool isFirst_ = true;
-    
-    uint32_t depthMm_ = 0;
+
+    // Суммы/средние АЦП
+    uint32_t pressSum_ = 0;
+    uint32_t tempSum_  = 0;
+
+    // Эталонное значение АЦП для атмосферного давления
+    uint32_t adc_z_ = 0;
+
+    // Вычисленные физические величины
+    uint32_t adcVoltage_   = 0;
+    uint32_t adcPascals_   = 0;
+    uint32_t depthMm_      = 0;
+    int32_t  tempMilliCelsius_ = 0;
 };

@@ -13,6 +13,10 @@
             "runToEntryPoint": "main",
             "servertype": "openocd",
             "device": "stm32f1x",
+            "liveWatch": {
+                "enabled": true,
+                "samplesPerSecond": 4
+            },
             // "svdFile": "Drivers/Hydrodrivers/resources/STM32F103.svd",
             "showDevDebugOutput": "raw",
             "configFiles": [
