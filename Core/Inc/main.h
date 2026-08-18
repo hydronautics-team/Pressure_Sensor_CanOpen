@@ -57,6 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define STM_ALIVE_Pin GPIO_PIN_0
+#define STM_ALIVE_GPIO_Port GPIOA
+#define DATA_READY_Pin GPIO_PIN_3
+#define DATA_READY_GPIO_Port GPIOA
+#define SPI1_NSS_Pin GPIO_PIN_4
+#define SPI1_NSS_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

@@ -15,63 +15,74 @@ extern "C" {
 #include <cstdint>
 
 /**
- *  Константы преобразований (замена макросов)
+ *  Константы преобразований для датчика 300 PSI с внешним 24-битным АЦП (VREF = 5V)
  */
 namespace PressureConversions {
-    // Преобразование среднего значения АЦП (без учёта атмосферного давления) в напряжение (мВ)
-    constexpr uint32_t adcToVoltage(uint32_t adc_press, uint32_t adc_z) noexcept {
-        return (adc_press - adc_z) * 16575u / 2048u;
+
+    // VREF = 5V (5000 мВ)
+    constexpr uint32_t VREF_MV = 5000u;
+    
+    // Максимальное значение 24-битного АЦП (2^24 - 1)
+    constexpr uint32_t ADC_MAX_24BIT = 16777215u;
+
+    // Диапазон измерения: 0...300 PSI
+    // 1 PSI = 6894.757 Па
+    constexpr uint32_t PSI_TO_PASCAL = 6895u;
+    
+    constexpr uint32_t MAX_PRESSURE_PSI = 300u;
+    constexpr uint32_t MAX_PRESSURE_PASCAL = MAX_PRESSURE_PSI * PSI_TO_PASCAL; // 2,068,500 Па
+    
+    // Выходной сигнал датчика: 0.5...4.5V
+    // 0.5V = 0 PSI, 4.5V = 300 PSI
+    constexpr uint32_t V_MIN_MV = 0u;   // 0.5V
+    constexpr uint32_t V_MAX_MV = 4000u;  // 4.5V
+    constexpr uint32_t V_SPAN_MV = V_MAX_MV - V_MIN_MV; // 4000 мВ
+
+    /**
+     * 1. Перевод "попугаев" 24-битного АЦП в милливольты (мВ) без учета атмосферного adc_zero
+     */
+    constexpr uint32_t adcToVoltageMv(uint32_t adc_value, uint32_t adc_zero) noexcept {
+        if (adc_value <= adc_zero) {
+            return 0u;
+        }
+        return static_cast<uint32_t>((static_cast<uint64_t>(adc_value - adc_zero) * VREF_MV) / ADC_MAX_24BIT);
     }
 
-    // Преобразование напряжения (мВ) в давление (Па)
+    /**
+     * 2. Перевод напряжения (мВ) в Паскали (Па)
+     */
     constexpr uint32_t voltageToPascals(uint32_t voltage_mv) noexcept {
-        return voltage_mv * 6895u / 4u * 37u / 9u;
+        if (voltage_mv >= V_MAX_MV) {
+            return MAX_PRESSURE_PASCAL;
+        }
+
+        // Чистый полезный сигнал (0...4000 мВ)
+        uint32_t active_voltage = voltage_mv - V_MIN_MV;
+
+        // Идеальная физическая формула: Паскали = (V_active * 300 PSI * 6895 Па) / 4000 мВ
+        uint64_t numerator = static_cast<uint64_t>(active_voltage) * MAX_PRESSURE_PSI * PSI_TO_PASCAL;
+        uint32_t pascals = numerator / V_SPAN_MV;
+        
+        return pascals;
     }
 
-    // Преобразование давления (Па) в глубину (мм)
-    constexpr uint32_t pascalsToDepthMm(uint32_t pascals) noexcept {
-        return pascals / (10u * 981u);   // 10 * 981 = 9810
-    }
+    /**
+     * 3. Перевод Паскалей (Па) в глубину (в миллиметрах водного столба)
+     * Формула: Глубина_мм = Паскали / (Плотность_воды * g)
+     */
+    constexpr uint32_t pascalsToDepthMm(int32_t pascals) noexcept {
+        if (pascals <= 0) {
+            return 0u;
+        }
 
-    // Преобразование среднего значения АЦП температуры в напряжение (мВ)
-    constexpr uint32_t tempAdcToVoltage(uint32_t adc_temp) noexcept {
-        return adc_temp * 33120u / 4096u;
-    }
-
-    // Преобразование напряжения температуры (мВ) в температуру (десятые доли градуса Цельсия)
-    constexpr int32_t voltageToTempCelsius(uint32_t voltage_mv) noexcept {
-        // формула: (напряжение - 5000) * 10
-        return (static_cast<int32_t>(voltage_mv) - 5000) * 10;
+        uint64_t numerator = static_cast<uint64_t>(pascals) * 1000u;
+        uint32_t depth = static_cast<uint32_t>(numerator / 9800u);
+        return depth;
     }
 } // namespace PressureConversions
 
 class PressureWrapper {
 public:
-    // Конструктор
-    PressureWrapper(ADC_HandleTypeDef& hadc, TIM_HandleTypeDef& htim) noexcept
-        : hadc_(hadc), htim_(htim) {}
-
-    // Инициализация: калибровка АЦП, запуск таймера и DMA
-    bool init() noexcept {
-        // Калибровка АЦП (однополярный режим для большинства STM32)
-        if (HAL_ADCEx_Calibration_Start(&hadc_) != HAL_OK) {
-            return false;
-        }
-
-        HAL_Delay(100);
-
-        if (HAL_TIM_Base_Start(&htim_) != HAL_OK) {
-            return false;
-        }
-
-        // Запуск DMA: буфер adcRaw_ объявлен как uint16_t, приводим к uint32_t*
-        if (HAL_ADC_Start_DMA(&hadc_, reinterpret_cast<uint32_t*>(adcRaw_.data()), kAdcBufferSize * 2) != HAL_OK) {
-            return false;
-        }
-
-        return true;
-    }
-
     // Опрос: вызывать в основном цикле
     void poll() noexcept {
         // Проверяем, завершён ли полный буфер (флаг атомарный)
@@ -119,11 +130,6 @@ public:
         fullConvDone_.store(true, std::memory_order_release);
     }
 
-    // Доступ к дескриптору АЦП для идентификации в обработчиках (опционально)
-    ADC_HandleTypeDef& getHadc() noexcept { return hadc_; }
-
-    ~PressureWrapper() = default;
-
 private:
     // Обработка данных из DMA-буфера
     void adcProcess(bool isHalf) noexcept {
@@ -156,10 +162,6 @@ private:
             fullConvDone_.store(false, std::memory_order_release);
         }
     }
-
-    // Дескрипторы периферии
-    ADC_HandleTypeDef& hadc_;
-    TIM_HandleTypeDef& htim_;
 
     // Параметры DMA
     static constexpr size_t kAdcBufferSize = 200;          // количество отсчётов на канал
