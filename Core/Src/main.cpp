@@ -8,12 +8,13 @@ extern "C" {
 }
 #endif
 
+#include "ADS1220.hpp"
 #include "hydrolib_bus_datalink_stream.hpp"
 #include "hydrolib_bus_application_master.hpp"
 #include "hydrv_gpio_low.hpp"
 #include "hydrv_rs_485.hpp"
 #include "pressure_processing.hpp"
-#include "ADS1220.hpp"
+
 
 constinit hydrv::GPIO::GPIOLow rx_pin(hydrv::GPIO::GPIOLow::GPIOA_port, 10,
                                       hydrv::GPIO::GPIOLow::GPIO_UART_RX);
@@ -47,6 +48,7 @@ hydrolib::bus::application::Master master(stream, loger);
 
 CAN_HandleTypeDef hcan;
 PressureProcess pressure;
+ADS1220 external_adc;
 
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -55,14 +57,7 @@ static void MX_CAN_Init(void);
 uint32_t depthMm = 0;
 int32_t adc_value = 0;
 bool isPressure = true;
-uint8_t reg0 = ADS1220_REG0_PRESS;
-uint8_t rdata_command = ADS1220_RDATA;
-uint8_t spi_buffer[3] = {0};
 
-/**
- * @brief  The application entry point.
- * @retval int
- */
 int main(void) {
   HAL_Init();
 
@@ -73,7 +68,7 @@ int main(void) {
   MX_CAN_Init();
 
   RS.Init();
-  ADS1220_Init();
+  external_adc.Init();
 
   HAL_GPIO_WritePin(STM_ALIVE_GPIO_Port, STM_ALIVE_Pin, GPIO_PIN_SET);
 
@@ -81,56 +76,26 @@ int main(void) {
     manager.Process();
 
     if (isPressure) {
-      // выбираем преобразование канала датчика давления
-      reg0 = ADS1220_REG0_PRESS;
-      ADS1220_WriteRegisters(0, &reg0, 1);
-      // запускаем одиночное преобразование
-      ADS1220_SendCommand(ADS1220_START);
-      // ждем, пока DRDY упадет в 0 (преобразование готово)
-      while (HAL_GPIO_ReadPin(DATA_READY_GPIO_Port, DATA_READY_Pin) == GPIO_PIN_SET) {}
-
-      // очищаем буфер для чтения даты
-      spi_buffer[0] = 0;
-      spi_buffer[1] = 0;
-      spi_buffer[2] = 0;
-
-      // читаем дату
-      HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
-      HAL_SPI_Transmit(&hspi1, &rdata_command, 1, HAL_MAX_DELAY);
-      HAL_SPI_Receive(&hspi1, spi_buffer, 3, HAL_MAX_DELAY);
-      HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
-
-      adc_value = ((int32_t)spi_buffer[0] << 16) | ((int32_t)spi_buffer[1] << 8) | spi_buffer[2];
-
-      // проверка на отрицательное число на всякий случай
-      if (adc_value & 0x00800000) {
-        adc_value = 0;
-      }
+      // получаем данные с ацп
+      adc_value = external_adc.PressureMeasurementProcess();
       // обрабатываем значение с ацп
       pressure.process(adc_value);
-
-      // isPressure = false; 
+      // isPressure = false;
     }
-    if (!isPressure)
-    {
-      // дописать обработку датчика температуры
+    if (!isPressure) {
+      adc_value = external_adc.TemperatureMeasurementProcess();
+      // дописать мат обработку датчика температуры
+      // isPressure = true;
     }
     depthMm = pressure.getDepthMm();
     master.Write(static_cast<void *>(&depthMm), 0, sizeof(depthMm));
   }
 }
 
-/**
- * @brief System Clock Configuration
- * @retval None
- */
 void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
@@ -142,8 +107,6 @@ void SystemClock_Config(void) {
     Error_Handler();
   }
 
-  /** Initializes the CPU, AHB and APB buses clocks
-   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
                                 RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
@@ -156,20 +119,7 @@ void SystemClock_Config(void) {
   }
 }
 
-/**
- * @brief CAN Initialization Function
- * @param None
- * @retval None
- */
 static void MX_CAN_Init(void) {
-
-  /* USER CODE BEGIN CAN_Init 0 */
-
-  /* USER CODE END CAN_Init 0 */
-
-  /* USER CODE BEGIN CAN_Init 1 */
-
-  /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN1;
   hcan.Init.Prescaler = 16;
   hcan.Init.Mode = CAN_MODE_NORMAL;
@@ -185,58 +135,11 @@ static void MX_CAN_Init(void) {
   if (HAL_CAN_Init(&hcan) != HAL_OK) {
     Error_Handler();
   }
-  /* USER CODE BEGIN CAN_Init 2 */
-
-  /* USER CODE END CAN_Init 2 */
 }
 
-/**
- * @brief SPI1 Initialization Function
- * @param None
- * @retval None
- */
-static void MX_SPI1_Init(void) {
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-}
-
-/**
- * @brief GPIO Initialization Function
- * @param None
- * @retval None
- */
 static void MX_GPIO_Init(void) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
 
-  /* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
@@ -255,20 +158,8 @@ static void MX_GPIO_Init(void) {
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(DATA_READY_GPIO_Port, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-
-  /* USER CODE END MX_GPIO_Init_2 */
 }
 
-/* USER CODE BEGIN 4 */
-
-/* USER CODE END 4 */
-
-/**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
 void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
