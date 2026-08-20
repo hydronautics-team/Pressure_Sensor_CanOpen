@@ -4,17 +4,17 @@ extern "C" {
 
 #include "main.h"
 
+
 #ifdef __cplusplus
 }
 #endif
 
 #include "ADS1220.hpp"
+#include "pressure_processing.hpp"
 #include "hydrolib_bus_datalink_stream.hpp"
 #include "hydrolib_bus_application_master.hpp"
 #include "hydrv_gpio_low.hpp"
 #include "hydrv_rs_485.hpp"
-#include "pressure_processing.hpp"
-
 
 constinit hydrv::GPIO::GPIOLow rx_pin(hydrv::GPIO::GPIOLow::GPIOA_port, 10,
                                       hydrv::GPIO::GPIOLow::GPIO_UART_RX);
@@ -47,14 +47,13 @@ hydrolib::bus::datalink::Stream stream(manager, 2);
 hydrolib::bus::application::Master master(stream, loger);
 
 CAN_HandleTypeDef hcan;
-PressureProcess pressure;
 ADS1220 external_adc;
+PressureProcess pressure;
 
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_CAN_Init(void);
-uint32_t depthMm = 0;
 int32_t adc_value = 0;
 bool isPressure = true;
 
@@ -87,8 +86,12 @@ int main(void) {
       // дописать мат обработку датчика температуры
       // isPressure = true;
     }
-    depthMm = pressure.getDepthMm();
-    master.Write(static_cast<void *>(&depthMm), 0, sizeof(depthMm));
+    auto depthMm = pressure.getDepthMm();
+    if (depthMm == std::nullopt) {
+      // отправлять чето что ошибка или просто забить
+    } else {
+      master.Write(static_cast<void *>(&depthMm), 0, sizeof(depthMm));
+    }
   }
 }
 
@@ -159,6 +162,8 @@ static void MX_GPIO_Init(void) {
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(DATA_READY_GPIO_Port, &GPIO_InitStruct);
 }
+
+void USART1_IRQHandler(void) { RS.IRQCallback(); }
 
 void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
