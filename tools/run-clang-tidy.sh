@@ -46,6 +46,8 @@ done
 
 readonly source_files=(
     "${project_root}/Core/Src/ADS1220.cpp"
+    "${project_root}/Core/Src/CANopen/CanDriver.cpp"
+    "${project_root}/Core/Src/CANopen/PressureSensorCanopen.cpp"
     "${project_root}/Core/Src/main.cpp"
 )
 

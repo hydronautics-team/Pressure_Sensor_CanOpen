@@ -21,6 +21,9 @@ set(MX_Include_Dirs
 set(MX_Application_Src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/ADS1220.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/CANopen/CanDriver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/CANopen/PressureSensorCanopen.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/CANopen/PressureSensorOd.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f1xx_it.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f1xx_hal_msp.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/sysmem.c

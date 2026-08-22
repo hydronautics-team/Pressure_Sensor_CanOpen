@@ -9,10 +9,13 @@ on:
 jobs:
   Build-F1:
     runs-on: ubuntu-latest
-    container:
-      image: seajackal/hydrodrivers:latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Arm GNU toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
       
       # Добавленный шаг для устранения ошибки безопасности Git
       - name: Mark workspace as safe for Git

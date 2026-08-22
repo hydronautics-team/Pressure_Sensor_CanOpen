@@ -1,42 +1,16 @@
 #include "main.h"
 
-#include <hydrolib_bus_datalink_stream.hpp>
-#include <hydrolib_bus_application_master.hpp>
-#include <hydrv_gpio_low.hpp>
-#include <hydrv_rs_485.hpp>
-
 #include "ADS1220.hpp"
+#include "PressureSensorCanopen.hpp"
 #include "pressure_processing.hpp"
 
 
 namespace {
-constinit hydrv::GPIO::GPIOLow rxPin(hydrv::GPIO::GPIOLow::GPIOA_port, 10, hydrv::GPIO::GPIOLow::GPIO_UART_RX);
-
-constinit hydrv::GPIO::GPIOLow txPin(hydrv::GPIO::GPIOLow::GPIOA_port, 9, hydrv::GPIO::GPIOLow::GPIO_UART_TX);
-
-constinit hydrv::GPIO::GPIOLow directionPin(hydrv::GPIO::GPIOLow::GPIOA_port, 8, hydrv::GPIO::GPIOLow::GPIO_Output);
-
-constexpr hydrv::UART::UARTLow::UARTPreset kUsart1Preset{
-    USART1_BASE, 7, RCC_APB2ENR_USART1EN, RCC_BASE + offsetof(RCC_TypeDef, APB2ENR), USART1_IRQn, 39, 1
-};
-
-constinit hydrv::RS485::RS485<255, 255> rs485(kUsart1Preset, rxPin, txPin, directionPin, 7);
-class Logger
-{
-public:
-    Logger() = default;
-};
-Logger logger;
-hydrolib::bus::datalink::StreamManager streamManager(1, rs485, logger);
-hydrolib::bus::datalink::Stream busStream(streamManager, 2);
-hydrolib::bus::application::Master busMaster(busStream, logger);
-
 CAN_HandleTypeDef hcan;
 SPI_HandleTypeDef hspi1;
 ADS1220 externalAdc{ hspi1, SPI1_NSS_GPIO_Port, SPI1_NSS_Pin };
 PressureProcessor pressureProcessor;
-
-constexpr int kDepthBusAddress = 0;
+PressureSensorCanopen canopenNode{ hcan };
 } // namespace
 
 void SystemClock_Config(void);
@@ -54,32 +28,46 @@ int main(void)
     MX_SPI1_Init();
     MX_CAN_Init();
 
-    rs485.Init();
     if (not externalAdc.Init()) {
+        Error_Handler();
+    }
+    if (not canopenNode.Init()) {
         Error_Handler();
     }
 
     HAL_GPIO_WritePin(STM_ALIVE_GPIO_Port, STM_ALIVE_Pin, GPIO_PIN_SET);
 
     while (1) {
-        streamManager.Process();
+        canopenNode.Proceed();
+        const bool measurementWasInProgress = externalAdc.IsMeasurementInProgress();
         const auto measurement = externalAdc.ReadMeasurement();
         if (measurement.has_value()) {
             if (measurement->channel == ADS1220::Channel::Pressure) {
-
                 if (pressureProcessor.Process(measurement->adcValue)) {
+                    const auto pressurePascals = pressureProcessor.PressurePascals();
                     const auto depthMillimeters = pressureProcessor.DepthMillimeters();
-                    if (depthMillimeters.has_value()) {
-                        const uint32_t depth = depthMillimeters.value();
-                        busMaster.Write(&depth, kDepthBusAddress, sizeof(depth));
+                    if (pressurePascals.has_value() && depthMillimeters.has_value()) {
+                        canopenNode.PublishMeasurement(
+                            measurement->adcValue,
+                            pressurePascals.value(),
+                            depthMillimeters.value());
+                    } else {
+                        canopenNode.MarkMeasurementInvalid();
                     }
+                } else {
+                    canopenNode.MarkMeasurementInvalid();
                 }
             }
+        } else if (measurementWasInProgress && not externalAdc.IsMeasurementInProgress()) {
+            // DRDY arrived, but the conversion could not be read over SPI.
+            canopenNode.MarkMeasurementInvalid();
         }
 
         if (not externalAdc.IsMeasurementInProgress()) {
             // A failed SPI start is retried on the next main-loop iteration.
-            (void)externalAdc.StartMeasurement(ADS1220::Channel::Pressure);
+            if (not externalAdc.StartMeasurement(ADS1220::Channel::Pressure)) {
+                canopenNode.MarkMeasurementInvalid();
+            }
         }
     }
 }
@@ -113,16 +101,18 @@ void SystemClock_Config(void)
 
 static void MX_CAN_Init(void)
 {
+    // PCLK1 36 MHz / (9 * (1 + 13 + 2) TQ) = 250 kbit/s;
+    // sample point = (1 + 13) / 16 = 87.5 %.
     hcan.Instance                  = CAN1;
-    hcan.Init.Prescaler            = 16;
+    hcan.Init.Prescaler            = 9;
     hcan.Init.Mode                 = CAN_MODE_NORMAL;
     hcan.Init.SyncJumpWidth        = CAN_SJW_1TQ;
-    hcan.Init.TimeSeg1             = CAN_BS1_1TQ;
-    hcan.Init.TimeSeg2             = CAN_BS2_1TQ;
+    hcan.Init.TimeSeg1             = CAN_BS1_13TQ;
+    hcan.Init.TimeSeg2             = CAN_BS2_2TQ;
     hcan.Init.TimeTriggeredMode    = DISABLE;
-    hcan.Init.AutoBusOff           = DISABLE;
+    hcan.Init.AutoBusOff           = ENABLE;
     hcan.Init.AutoWakeUp           = DISABLE;
-    hcan.Init.AutoRetransmission   = DISABLE;
+    hcan.Init.AutoRetransmission   = ENABLE;
     hcan.Init.ReceiveFifoLocked    = DISABLE;
     hcan.Init.TransmitFifoPriority = DISABLE;
     if (HAL_CAN_Init(&hcan) != HAL_OK) {
@@ -175,11 +165,6 @@ static void MX_GPIO_Init(void)
 
     HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-}
-
-extern "C" void USART1_IRQHandler(void)
-{
-    rs485.IRQCallback();
 }
 
 extern "C" void EXTI3_IRQHandler(void)

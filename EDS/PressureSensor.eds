@@ -1,0 +1,393 @@
+[FileInfo]
+CreatedBy=Hydronautics
+ModifiedBy=Hydronautics
+Description=CANopen CiA 404 pressure sensor with manufacturer-specific depth output
+CreationTime=05:00PM
+CreationDate=08-22-2026
+ModificationTime=05:00PM
+ModificationDate=08-22-2026
+FileName=PressureSensor.eds
+FileVersion=1
+FileRevision=0
+EDSVersion=4.0
+
+[DeviceInfo]
+VendorName=Hydronautics
+VendorNumber=0x00000000
+ProductName=Pressure Sensor
+ProductNumber=0x00000001
+RevisionNumber=0x00010000
+OrderCode=1
+BaudRate_10=0
+BaudRate_20=0
+BaudRate_50=0
+BaudRate_125=0
+BaudRate_250=1
+BaudRate_500=0
+BaudRate_800=0
+BaudRate_1000=0
+SimpleBootUpMaster=0
+SimpleBootUpSlave=1
+Granularity=8
+DynamicChannelsSupported=0
+CompactPDO=0
+GroupMessaging=0
+NrOfRXPDO=0
+NrOfTXPDO=1
+LSS_Supported=0
+
+[DummyUsage]
+Dummy0001=0
+Dummy0002=0
+Dummy0003=0
+Dummy0004=0
+Dummy0005=0
+Dummy0006=0
+Dummy0007=0
+
+[Comments]
+Lines=4
+Line1=CiA 404-1 base analog input channel, INTEGER32 representation.
+Line2=Pressure is reported in pascals at 0x9130sub1.
+Line3=Depth is a manufacturer-specific UNSIGNED32 value at 0x2000.
+Line4=TPDO1 payload is pressurePa followed by depthMm, both little-endian.
+
+[MandatoryObjects]
+SupportedObjects=3
+1=0x1000
+2=0x1001
+3=0x1018
+
+[OptionalObjects]
+SupportedObjects=13
+1=0x1008
+2=0x1009
+3=0x100A
+4=0x1017
+5=0x1200
+6=0x1800
+7=0x1A00
+8=0x6110
+9=0x6131
+10=0x6132
+11=0x6150
+12=0x9100
+13=0x9130
+
+[ManufacturerObjects]
+SupportedObjects=1
+1=0x2000
+
+[1000]
+ParameterName=Device Type
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00020194
+PDOMapping=0
+
+[1001]
+ParameterName=Error Register
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=0x00
+PDOMapping=0
+
+[1008]
+ParameterName=Manufacturer Device Name
+ObjectType=0x7
+DataType=0x0009
+AccessType=const
+DefaultValue=Hydronautics Pressure Sensor
+PDOMapping=0
+
+[1009]
+ParameterName=Manufacturer Hardware Version
+ObjectType=0x7
+DataType=0x0009
+AccessType=const
+DefaultValue=1.0
+PDOMapping=0
+
+[100A]
+ParameterName=Manufacturer Software Version
+ObjectType=0x7
+DataType=0x0009
+AccessType=const
+DefaultValue=1.0.0
+PDOMapping=0
+
+[1017]
+ParameterName=Producer Heartbeat Time
+ObjectType=0x7
+DataType=0x0006
+AccessType=rw
+DefaultValue=1000
+PDOMapping=0
+
+[1018]
+ParameterName=Identity Object
+ObjectType=0x9
+SubNumber=5
+
+[1018sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=4
+PDOMapping=0
+
+[1018sub1]
+ParameterName=Vendor ID
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000000
+PDOMapping=0
+
+[1018sub2]
+ParameterName=Product Code
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000001
+PDOMapping=0
+
+[1018sub3]
+ParameterName=Revision Number
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00010000
+PDOMapping=0
+
+[1018sub4]
+ParameterName=Serial Number
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x00000001
+PDOMapping=0
+
+[1200]
+ParameterName=Server SDO Parameter
+ObjectType=0x9
+SubNumber=3
+
+[1200sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=2
+PDOMapping=0
+
+[1200sub1]
+ParameterName=COB-ID Client to Server
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=$NODEID+0x600
+PDOMapping=0
+
+[1200sub2]
+ParameterName=COB-ID Server to Client
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=$NODEID+0x580
+PDOMapping=0
+
+[1800]
+ParameterName=TPDO1 Communication Parameter
+ObjectType=0x9
+SubNumber=3
+
+[1800sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=2
+PDOMapping=0
+
+[1800sub1]
+ParameterName=COB-ID Used by TPDO1
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=$NODEID+0x180
+PDOMapping=0
+
+[1800sub2]
+ParameterName=Transmission Type
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=255
+PDOMapping=0
+
+[1A00]
+ParameterName=TPDO1 Mapping Parameter
+ObjectType=0x9
+SubNumber=3
+
+[1A00sub0]
+ParameterName=Number of Mapped Objects
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=2
+PDOMapping=0
+
+[1A00sub1]
+ParameterName=Pressure Mapping
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x91300120
+PDOMapping=0
+
+[1A00sub2]
+ParameterName=Depth Mapping
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0x20000020
+PDOMapping=0
+
+[2000]
+ParameterName=Depth Millimeters
+ObjectType=0x7
+DataType=0x0007
+AccessType=ro
+DefaultValue=0
+PDOMapping=1
+
+[6110]
+ParameterName=AI Sensor Type
+ObjectType=0x8
+SubNumber=2
+
+[6110sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[6110sub1]
+ParameterName=Pressure Transducer
+ObjectType=0x7
+DataType=0x0006
+AccessType=const
+DefaultValue=90
+PDOMapping=0
+
+[6131]
+ParameterName=AI Physical Unit PV
+ObjectType=0x8
+SubNumber=2
+
+[6131sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[6131sub1]
+ParameterName=Pressure Unit Pascal
+ObjectType=0x7
+DataType=0x0007
+AccessType=const
+DefaultValue=0x00220000
+PDOMapping=0
+
+[6132]
+ParameterName=AI Decimal Digits PV
+ObjectType=0x8
+SubNumber=2
+
+[6132sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[6132sub1]
+ParameterName=Pressure Decimal Digits
+ObjectType=0x7
+DataType=0x0005
+AccessType=const
+DefaultValue=0
+PDOMapping=0
+
+[6150]
+ParameterName=AI Status
+ObjectType=0x8
+SubNumber=2
+
+[6150sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[6150sub1]
+ParameterName=Pressure Status
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=0
+PDOMapping=0
+
+[9100]
+ParameterName=AI Input FV Integer32
+ObjectType=0x8
+SubNumber=2
+
+[9100sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[9100sub1]
+ParameterName=Pressure Raw ADC Value
+ObjectType=0x7
+DataType=0x0004
+AccessType=ro
+DefaultValue=0
+PDOMapping=0
+
+[9130]
+ParameterName=AI Input PV Integer32
+ObjectType=0x8
+SubNumber=2
+
+[9130sub0]
+ParameterName=Number of Entries
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[9130sub1]
+ParameterName=Pressure Pascals
+ObjectType=0x7
+DataType=0x0004
+AccessType=ro
+DefaultValue=0
+PDOMapping=1
