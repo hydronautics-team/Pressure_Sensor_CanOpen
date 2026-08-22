@@ -99,7 +99,7 @@ ParameterName=Manufacturer Device Name
 ObjectType=0x7
 DataType=0x0009
 AccessType=const
-DefaultValue=Hydronautics Pressure Sensor
+DefaultValue=SAUVC Pressure Sensor
 PDOMapping=0
 
 [1009]
