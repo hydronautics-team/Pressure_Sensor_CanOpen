@@ -1,0 +1,22 @@
+{
+    "C_Cpp.autocomplete": "disabled",
+    "C_Cpp.errorSquiggles": "disabled",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--background-index",
+        "--clang-tidy",
+        "--completion-style=detailed",
+        "--enable-config",
+        "--query-driver=/usr/bin/arm-none-eabi-*"
+    ],
+    "cmake.buildPreset": "Debug",
+    "cmake.configureOnOpen": true,
+    "cmake.configurePreset": "Debug",
+    "cmake.useCMakePresets": "always",
+    "[c]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    }
+}

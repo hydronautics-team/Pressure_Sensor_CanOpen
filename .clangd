@@ -1,0 +1,24 @@
+CompileFlags:
+  CompilationDatabase: build/Debug
+  Add:
+    - -ferror-limit=0
+
+Index:
+  Background: Build
+  StandardLibrary: Yes
+
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: Strict
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+
+---
+If:
+  PathMatch: ^(Drivers|\.deps|build)/.*
+
+Index:
+  Background: Skip
+
+Diagnostics:
+  Suppress: '*'

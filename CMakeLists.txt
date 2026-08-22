@@ -71,3 +71,15 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# Static analysis for application C++ sources. The helper discovers the
+# arm-none-eabi standard-library include paths used by the active toolchain.
+add_custom_target(clang-tidy
+    COMMAND ${CMAKE_COMMAND} -E env
+        "ARM_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+        bash "${CMAKE_SOURCE_DIR}/tools/run-clang-tidy.sh" "${CMAKE_BINARY_DIR}"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Running clang-tidy for application sources"
+    USES_TERMINAL
+    VERBATIM
+)

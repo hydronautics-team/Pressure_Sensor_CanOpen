@@ -5,192 +5,56 @@
 
 #include "main.h"
 
-SPI_HandleTypeDef hspi1;
-static void MX_SPI1_Init(void)
-{
-    /* SPI1 parameter configuration*/
-    hspi1.Instance               = SPI1;
-    hspi1.Init.Mode              = SPI_MODE_MASTER;
-    hspi1.Init.Direction         = SPI_DIRECTION_2LINES;
-    hspi1.Init.DataSize          = SPI_DATASIZE_8BIT;
-    hspi1.Init.CLKPolarity       = SPI_POLARITY_LOW;
-    hspi1.Init.CLKPhase          = SPI_PHASE_2EDGE;
-    hspi1.Init.NSS               = SPI_NSS_SOFT;
-    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-    hspi1.Init.FirstBit          = SPI_FIRSTBIT_MSB;
-    hspi1.Init.TIMode            = SPI_TIMODE_DISABLE;
-    hspi1.Init.CRCCalculation    = SPI_CRCCALCULATION_DISABLE;
-    hspi1.Init.CRCPolynomial     = 10;
-    if (HAL_SPI_Init(&hspi1) != HAL_OK) {
-        Error_Handler();
-    }
-}
-
 class ADS1220
 {
-private:
-    bool _isPressStarted = false;
-    bool SendCommand(uint8_t command) noexcept
-    {
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
-        status = HAL_SPI_Transmit(&hspi1, &command, 1, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
-
-        if (status != HAL_OK) {
-            return false;
-        }
-        else {
-            return true;
-        }
-    }
-
-    bool WriteRegisters(uint8_t reg_start, const uint8_t* p_data, uint8_t count) noexcept
-    {
-        uint8_t command = ADS1220_WREG | (reg_start << 2) | (count - 1);
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
-        HAL_SPI_Transmit(&hspi1, &command, 1, HAL_MAX_DELAY);
-        status = HAL_SPI_Transmit(&hspi1, p_data, count, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
-
-        if (status != HAL_OK) {
-            return false;
-        }
-        else {
-            return true;
-        }
-    }
-
-    // константы команд ADS1220
-    uint8_t ADS1220_RESET      = 0b00000110;        // Reset the device (0x06)
-    uint8_t ADS1220_START      = 0b00001000;        // Start or restart conversions (0x08)
-    uint8_t ADS1220_POWERDOWN  = 0b00000010;        // Enter power-down mode (0x02)
-    uint8_t ADS1220_RDATA      = 0b00010000;        // Read data by command (0x10)
-    uint8_t ADS1220_RREG       = 0b00100000;        // Read nn registers starting at address rr - 0010 rrnn
-    uint8_t ADS1220_WREG       = 0b01000000;        // Write nn registers starting at address rr - 0100 rrnn
-    uint8_t ADS1220_REG0_PRESS = 0b10110000 | 0b01; // конфиг измерения канала датчика давления
-    uint8_t ADS1220_REG0_TEMP  = 0b10100000 | 0b01; // конфиг измерения канала датчика температуры
-
-    HAL_StatusTypeDef status           = HAL_OK;
-    uint8_t spi_buffer[3]              = { 0, 0, 0 };
-    std::optional<uint32_t> adc_value_ = 0;
-    bool dataIsValidate                = true;
-
 public:
-    bool Init() noexcept
+    enum class Channel : uint8_t
     {
-        bool ok = true;
-        ok      = ok and SendCommand(ADS1220_RESET);
-        HAL_Delay(10);
-
-        uint8_t config[4] = { 0 };
-
-        // Configuration Register 0 (offset = 00h)
-        config[0] = ADS1220_REG0_PRESS; // измеряем по дефолту AIN3
-                                        // относительно AVSS (датчик
-                                        // давления) без усилений
-
-        // Configuration Register 1 (offset = 01h)
-        config[1] = 0; // normal mode 20 SPS
-
-        // Configuration Register 2 (offset = 02h)
-        config[2] = 0b01 << 6;
-
-        // Configuration Register 3 (offset = 03h)
-        config[3] = 0; // data ready pin enabled
-
-        ok and WriteRegisters(0, config, 4);
-        return ok;
-    }
-
-    bool PressureMeasurementProcess() noexcept
-    {
-
-        if (_isPressStarted) {
-            return true;
-        }
-        /*
-         * ПОЛУЧЕНИЕ ЗНАЧЕНИЙ С ДАТЧИКА
-         */
-        // выбираем преобразование канала датчика давления
-        if (not WriteRegisters(0, &ADS1220_REG0_PRESS, 1)) {
-            return false;
-        }
-        // запускаем одиночное преобразование
-        if (not SendCommand(ADS1220_START)) {
-            return false;
-        }
-    }
-    std::optional<uint32_t> CallbackMeasurement() noexcept
-    {
-        if (_isPressStarted) {
-            _isPressStarted = false;
-            // TODO убрать
-            //  ждем, пока DRDY упадет в 0 (преобразование готово)
-            while (HAL_GPIO_ReadPin(DATA_READY_GPIO_Port, DATA_READY_Pin) == GPIO_PIN_SET) {
-            }
-
-            // очищаем буфер для чтения даты
-            spi_buffer[0] = 0;
-            spi_buffer[1] = 0;
-            spi_buffer[2] = 0;
-
-            // читаем дату
-            HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
-            if (HAL_SPI_Transmit(&hspi1, &ADS1220_RDATA, 1, HAL_MAX_DELAY) != HAL_OK) {
-                return std::nullopt;
-            }
-            if (HAL_SPI_Receive(&hspi1, spi_buffer, 3, HAL_MAX_DELAY) != HAL_OK) {
-                return std::nullopt;
-            }
-            HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
-
-            adc_value_ = ((int32_t)spi_buffer[0] << 16) | ((int32_t)spi_buffer[1] << 8) | spi_buffer[2];
-
-            // проверка на отрицательное число на всякий случай
-            if (adc_value_.value() & 0x00800000) {
-                return std::nullopt;
-            }
-
-            return adc_value_;
-        }
-        else {
-            // TODO Обработать температуру
-        }
-    }
-
-    std::optional<uint32_t> TemperatureMeasurementProcess()
-    {
-        // выбираем преобразование канала датчика давления
-        WriteRegisters(0, &ADS1220_REG0_TEMP, 1);
-        // запускаем одиночное преобразование
-        SendCommand(ADS1220_START);
-        // ждем, пока DRDY упадет в 0 (преобразование готово)
-        while (HAL_GPIO_ReadPin(DATA_READY_GPIO_Port, DATA_READY_Pin) == GPIO_PIN_SET) {
-        }
-
-        // очищаем буфер для чтения даты
-        spi_buffer[0] = 0;
-        spi_buffer[1] = 0;
-        spi_buffer[2] = 0;
-
-        // читаем дату
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET);
-        HAL_SPI_Transmit(&hspi1, &ADS1220_RDATA, 1, HAL_MAX_DELAY);
-        HAL_SPI_Receive(&hspi1, spi_buffer, 3, HAL_MAX_DELAY);
-        HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
-
-        adc_value_ = ((int32_t)spi_buffer[0] << 16) | ((int32_t)spi_buffer[1] << 8) | spi_buffer[2];
-
-        // проверка на отрицательное число на всякий случай
-        if (adc_value_.value() & 0x00800000) {
-            adc_value_ = 0;
-        }
-
-        return adc_value_;
-    }
-
-    std::optional<int32_t> getADCvalue() const noexcept
-    {
-        return adc_value_;
+        Pressure    = 0,
+        Temperature = 1,
     };
+
+    struct Measurement
+    {
+        Channel channel;
+        int32_t adcValue;
+    };
+
+    ADS1220(SPI_HandleTypeDef& spi, GPIO_TypeDef* chipSelectPort, uint16_t chipSelectPin) noexcept;
+
+    [[nodiscard]] bool Init() noexcept;
+    [[nodiscard]] bool StartMeasurement(Channel channel) noexcept;
+    [[nodiscard]] std::optional<Measurement> ReadMeasurement() noexcept;
+
+    [[nodiscard]] bool IsMeasurementInProgress() const noexcept;
+    void OnDataReadyInterrupt() noexcept;
+
+private:
+    static constexpr uint8_t kResetCommand         = 0x06;
+    static constexpr uint8_t kStartCommand         = 0x08;
+    static constexpr uint8_t kReadDataCommand      = 0x10;
+    static constexpr uint8_t kWriteRegisterCommand = 0x40;
+
+    // AIN3/AVSS and AIN2/AVSS, gain 1, PGA bypassed.
+    static constexpr uint8_t kPressureRegister0    = 0xB1;
+    static constexpr uint8_t kTemperatureRegister0 = 0xA1;
+
+    static constexpr uint8_t kRegisterCount       = 4;
+    static constexpr uint8_t kConversionByteCount = 3;
+
+    SPI_HandleTypeDef& spi_;
+    GPIO_TypeDef* chipSelectPort_;
+    uint16_t chipSelectPin_;
+
+    volatile bool dataReady_    = false;
+    bool measurementInProgress_ = false;
+    Channel activeChannel_      = Channel::Pressure;
+
+    bool SendCommand(uint8_t command) noexcept;
+    bool WriteRegisters(uint8_t firstRegister, const uint8_t* data, uint8_t count) noexcept;
+    std::optional<int32_t> ReadConversion() noexcept;
+
+    void Select() noexcept;
+    void Deselect() noexcept;
+    static uint8_t Register0For(Channel channel) noexcept;
 };
