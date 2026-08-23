@@ -22,6 +22,15 @@
                 "interface/stlink.cfg",
                 "target/stm32f1x.cfg"
             ]
-        }
+        },
+        {
+            "name": "Renode debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "miDebuggerServerAddress": "localhost:3333",
+            "cwd": "${workspaceRoot}",
+            "miDebuggerPath": "gdb-multiarch",
+            "program": "build/Debug/Pressure_Sensor_SAUVC.elf"
+        },
     ]
 }
