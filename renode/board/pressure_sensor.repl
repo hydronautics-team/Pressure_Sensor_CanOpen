@@ -3,13 +3,14 @@ using "../cpu/stm32f1.repl"
 stmAlive: Miscellaneous.LED @ gpioPortA 0
 
 rcc: Miscellaneous.STM32F1RCC @ sysbus 0x40021000
+flashController: Miscellaneous.STM32F1FlashController @ sysbus 0x40022000
 
 spi1: SPI.STM32SPI @ sysbus 0x40013000
     series: STM32Series.F1
     IRQ -> nvic@35
 
 ads1220: Sensors.ADS1220 @ spi1
-    DataReady -> gpioPortA@3
+    DataReady -> gpioPortA@3 | exti@3
 
 // PA4 is the firmware-controlled, active-low ADS1220 chip select.
 gpioPortA:
