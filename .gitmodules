@@ -1,4 +1,3 @@
-[submodule "Drivers/Hydrodrivers"]
-	path = Drivers/Hydrodrivers
-	url = https://github.com/SeaJackal/Hydrodrivers.git
-	branch = main
+[submodule "Drivers/CANoopEn"]
+	path = Drivers/CANoopEn
+	url = https://github.com/xyntos-ch/CANoopEn.git

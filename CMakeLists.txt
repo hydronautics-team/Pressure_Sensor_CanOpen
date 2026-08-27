@@ -33,7 +33,44 @@ enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
-add_subdirectory(Drivers/Hydrodrivers)
+
+# CANoopEn is kept as an unmodified submodule.  Build the selected stack layers
+# locally so the firmware controls the feature set and the generated OD.
+file(GLOB CANOOPEN_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Common/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/ObjectDictionary/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Protocols/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Slave/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/System/*.cpp"
+)
+
+add_library(CANoopEn STATIC ${CANOOPEN_SOURCES})
+target_include_directories(CANoopEn PUBLIC
+    # The reduced project settings intentionally override the stack defaults.
+    "${CMAKE_SOURCE_DIR}/Core/Inc/CANopen"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Common"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/ObjectDictionary"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Protocols"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Slave"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/Settings"
+    "${CMAKE_SOURCE_DIR}/Drivers/CANoopEn/Source/System"
+)
+target_compile_definitions(CANoopEn PUBLIC
+    CO_ENABLE_MASTER=0
+    CO_ENABLE_SLAVE=1
+    CO_ENABLE_HEARTBEAT=1
+    CO_ENABLE_SYNC=0
+    CO_ENABLE_TIME=0
+    CO_ENABLE_EMCY=0
+    CO_ENABLE_PDO=1
+    CO_ENABLE_MPDO=0
+    CO_ENABLE_SDO_SERVER=1
+    CO_ENABLE_SDO_CLIENT=0
+    CO_ENABLE_SDO_BLOCK_TRANSFER=0
+    CO_ENABLE_LSS=0
+    CO_ENABLE_INDICATORS=0
+)
+target_compile_options(CANoopEn PRIVATE -fno-use-cxa-atexit)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -64,12 +101,13 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    HydrodriversUART 
-    HydrodriversGPIO
-    HydrolibBusDatalink 
-    HydrolibBusApplication
+    CANoopEn
 
     # Add user defined libraries
+)
+
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-use-cxa-atexit>
 )
 
 # Static analysis for application C++ sources. The helper discovers the
