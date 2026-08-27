@@ -526,7 +526,7 @@ openocd --version
 
 ### Альтернатива: VS Code Dev Container
 
-Если на компьютере установлены Docker, VS Code и расширение Dev Containers, откройте репозиторий в VS Code и выполните команду `Dev Containers: Reopen in Container`. Конфигурация из `.devcontainer` установит компилятор ARM, CMake, OpenOCD, clang-tidy и `can-utils`.
+Если на компьютере установлены Docker, VS Code и расширение Dev Containers, откройте репозиторий в VS Code и выполните команду `Dev Containers: Rebuild and Reopen in Container`. Конфигурация из `.devcontainer` установит компилятор ARM, CMake, OpenOCD, clang-tidy, `can-utils` и Renode 1.16.1.
 
 Для прошивки через ST-Link контейнер запускается с доступом к USB. На Linux Docker также должен иметь доступ к `/dev/bus/usb`; на Windows и macOS проброс USB настраивается средствами Docker Desktop или WSL отдельно.
 
@@ -606,6 +606,81 @@ cmake --build build/Debug --target clang-tidy
 ```
 
 Для этой команды должен быть установлен `clang-tidy`.
+
+## Запуск в Renode с SocketCAN
+
+Все файлы эмуляции находятся в каталоге `renode`:
+
+| Файл | Назначение |
+|---|---|
+| `renode/plugins/ADS1220.cs` | SPI-модель ADS1220 с командами RESET, START/SYNC, RDATA, RREG/WREG и активным низким DRDY |
+| `renode/STM32F1Support.cs` | Недостающие для Cube HAL модели RCC/Flash и адаптер bxCAN STM32F1 |
+| `renode/cpu/stm32f1.repl` | Локальное описание STM32F103 без внешних файлов платформы |
+| `renode/board/pressure_sensor.repl` | SPI1, CAN1, ADS1220, GPIO и bit-band связи платы |
+| `renode/pressure_sensor.resc` | Загрузка ELF, создание `CANHub` и SocketCAN-моста |
+| `renode/setup_vcan.sh` | Загрузка kernel-модуля `vcan` и создание интерфейса `vcan0` |
+| `renode/run.sh` | Проверка ELF, подготовка SocketCAN и запуск Renode |
+
+SocketCAN-мост работает только на Linux. Dev Container запускается в privileged-режиме, чтобы из него можно было создать `vcan0`. После изменения `.devcontainer` контейнер нужно именно пересобрать, а не просто перезапустить.
+
+Соберите прошивку и запустите эмуляцию из корня проекта:
+
+```bash
+cmake --preset Debug
+cmake --build --preset Debug --parallel
+./renode/run.sh
+```
+
+`run.sh` сам вызывает `setup_vcan.sh`. При запуске вне Dev Container скрипт может запросить пароль `sudo`. Эквивалентная ручная подготовка интерфейса:
+
+```bash
+sudo modprobe vcan
+sudo ip link add dev vcan0 type vcan
+sudo ip link set vcan0 up
+```
+
+В другом терминале включите просмотр CAN-трафика:
+
+```bash
+candump -tz vcan0
+```
+
+После запуска должны появиться boot-up и heartbeat узла 3:
+
+```text
+vcan0  703   [1]  00
+vcan0  703   [1]  7D
+```
+
+Переведите узел в Operational и наблюдайте TPDO1 примерно 20 раз в секунду:
+
+```bash
+cansend vcan0 000#0103
+```
+
+В консоли Renode можно изменить выдаваемый 24-битный код давления без перезапуска:
+
+```text
+(pressure-sensor) sysbus.spi1.ads1220 PressureRawValue 1200000
+```
+
+Первая выборка остаётся атмосферной опорой, поэтому для получения ненулевой глубины сначала дождитесь первой выборки, а затем установите большее значение. Допустимый диапазон модели — от `-8388608` до `8388607`; отрицательные значения текущий драйвер прошивки помечает как некорректные.
+
+По умолчанию используются `build/Debug/Pressure_Sensor_SAUVC.elf` и `vcan0`. Их можно заменить переменными окружения:
+
+```bash
+RENODE_FIRMWARE="$PWD/build/Release/Pressure_Sensor_SAUVC.elf" \
+RENODE_CAN_INTERFACE=vcan1 \
+./renode/run.sh
+```
+
+Для запуска сценария вручную, после создания интерфейса, используйте:
+
+```bash
+renode --console -e 'include @renode/pressure_sensor.resc'
+```
+
+Renode завершает работу командой `quit` в его консоли. Интерфейс `vcan0` остаётся в системе; при необходимости его можно удалить командой `sudo ip link delete vcan0`.
 
 ## Подключение аппаратуры
 

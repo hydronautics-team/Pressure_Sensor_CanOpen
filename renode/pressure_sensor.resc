@@ -1,0 +1,40 @@
+:name: STM32F103 pressure sensor with ADS1220 and SocketCAN
+:description: Runs the pressure sensor firmware and exposes bxCAN through a Linux CAN interface
+
+$board_repl_path?=$ORIGIN/board/pressure_sensor.repl
+$gdb_port?="3333"
+
+$bin_path?=$ORIGIN/../build/Debug/Pressure_Sensor_SAUVC.elf
+
+EnsureTypeIsLoaded "Antmicro.Renode.Peripherals.SPI.ISPIPeripheral"
+EnsureTypeIsLoaded "Antmicro.Renode.Peripherals.Timers.LimitTimer"
+
+include $ORIGIN/plugins/ADS1220.cs
+include $ORIGIN/plugins/STM32F1Support.cs
+
+mach create "pressure-sensor"
+
+machine LoadPlatformDescription $board_repl_path
+
+machine StartGdbServer 3333
+
+cpu PerformanceInMips 200
+emulation SetGlobalQuantum "0.000001"
+
+emulation CreateCANHub "canHub"
+
+connector Connect sysbus.can1 canHub
+
+machine CreateSocketCANBridge "socketcan" "vcan0"
+
+connector Connect socketcan canHub
+
+macro reset
+"""
+    sysbus LoadELF $bin_path
+    sysbus.cpu VectorTableOffset 0x08000000
+"""
+
+runMacro $reset
+
+start

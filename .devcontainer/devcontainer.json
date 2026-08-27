@@ -1,46 +1,146 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-    "name": "Pressure Sensor CANopen",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
-    "features": {
-        "ghcr.io/devcontainers/features/git:1": {}
-    },
-    "runArgs": [
-        "--privileged",
-        "--security-opt",
-        "seccomp=unconfined",
-        "-v",
-        "/dev/bus/usb:/dev/bus/usb" // For OpenOCD flashing/debugging
-    ],
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "ms-vscode.cpptools-extension-pack",
-                "twxs.cmake",
-                "josetr.cmake-language-support-vscode",
-                "ms-vscode.cmake-tools",
-                "ms-vscode-remote.remote-containers",
-                "ms-azuretools.vscode-docker",
-                "cschlosser.doxdocgen",
-                "xaver.clang-format",
-                "llvm-vs-code-extensions.vscode-clangd",
-                "mcu-debug.debug-tracker-vscode",
-                "marus25.cortex-debug",
-                "mcu-debug.peripheral-viewer"
-            ],
-            "settings": {
-                "clangd.arguments": [
-                    "--background-index",
-                    "--compile-commands-dir=build/Debug",
-                    "--query-driver=/usr/bin/arm-none-eabi-*"
-                ],
-                "C_Cpp.intelliSenseEngine": "disabled",
-                "cortex-debug.armToolchainPath": "/usr/bin", // Path to arm-none-eabi toolchain
-                "cortex-debug.gdbPath": "/usr/bin/gdb-multiarch"
-            }
-        }
+  "name": "PressSens",
+  "build": {
+      "dockerfile": "./Dockerfile",
+      "context": ".",
+      "args": {
+        "USER_UID": "${localEnv:USER_UID}",
+        "USER_GID": "${localEnv:USER_GID}"
+      }
+  },
+  "runArgs": [
+    "--privileged",
+    "--security-opt",
+    "seccomp=unconfined",
+    "--network=host"
+  ],
+  "remoteUser": "hydrolib",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "vadimcn.vscode-lldb",
+        "twxs.cmake",
+        "streetsidesoftware.code-spell-checker-russian",
+        "streetsidesoftware.code-spell-checker",
+        "matepek.vscode-catch2-test-adapter",
+        "actboy168.tasks",
+        "ms-vscode.cpptools",
+        "ms-vscode.cpp-devtools",
+        "Gruntfuggly.todo-tree",
+        "mesonbuild.mesonbuild",
+        "mhutchie.git-graph"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "clangd.path": "/usr/bin/clangd-19",
+        "clangd.arguments": [
+          "-log=verbose",
+          "-pretty",
+          "--background-index",
+          "--compile-commands-dir=build-release",
+          "--header-insertion=never",
+          "--clang-tidy",
+          "--completion-style=detailed",
+          "--function-arg-placeholders=false",
+          "--query-driver=/opt/arm-gnu-toolchain/bin/arm-none-eabi-*"
+        ],
+        "editor.formatOnSave": true,
+        "clang-format.executable": "/usr/bin/clang-format-19",
+        "clang-format.style": "file",
+        "clang-format.language.c.enable": true,
+        "files.associations": {
+          "coroutine": "cpp",
+          "variant": "cpp",
+          "array": "cpp",
+          "tuple": "cpp",
+          "utility": "cpp",
+          "jacobi": "cpp",
+          "random": "cpp",
+          "mutex": "cpp",
+          "ranges": "cpp",
+          "streambuf": "cpp",
+          "memory": "cpp",
+          "istream": "cpp",
+          "functional": "cpp",
+          "numbers": "cpp",
+          "optional": "cpp",
+          "ratio": "cpp",
+          "system_error": "cpp",
+          "type_traits": "cpp",
+          "string": "cpp",
+          "unordered_map": "cpp",
+          "string_view": "cpp",
+          "atomic": "cpp",
+          "any": "cpp",
+          "charconv": "cpp",
+          "chrono": "cpp",
+          "compare": "cpp",
+          "memory_resource": "cpp",
+          "limits": "cpp",
+          "bit": "cpp",
+          "bitset": "cpp",
+          "shared_mutex": "cpp",
+          "fstream": "cpp",
+          "cctype": "cpp",
+          "clocale": "cpp",
+          "cmath": "cpp",
+          "complex": "cpp",
+          "concepts": "cpp",
+          "condition_variable": "cpp",
+          "cstdarg": "cpp",
+          "cstddef": "cpp",
+          "cstdint": "cpp",
+          "cstdio": "cpp",
+          "cstdlib": "cpp",
+          "cstring": "cpp",
+          "ctime": "cpp",
+          "cwchar": "cpp",
+          "cwctype": "cpp",
+          "deque": "cpp",
+          "forward_list": "cpp",
+          "list": "cpp",
+          "map": "cpp",
+          "set": "cpp",
+          "vector": "cpp",
+          "exception": "cpp",
+          "algorithm": "cpp",
+          "iterator": "cpp",
+          "numeric": "cpp",
+          "initializer_list": "cpp",
+          "iomanip": "cpp",
+          "iosfwd": "cpp",
+          "iostream": "cpp",
+          "new": "cpp",
+          "ostream": "cpp",
+          "semaphore": "cpp",
+          "span": "cpp",
+          "sstream": "cpp",
+          "stdexcept": "cpp",
+          "stop_token": "cpp",
+          "thread": "cpp",
+          "cinttypes": "cpp",
+          "typeinfo": "cpp",
+          "executor": "cpp",
+          "future": "cpp",
+          "io_context": "cpp",
+          "netfwd": "cpp",
+          "timer": "cpp",
+          "unordered_set": "cpp",
+          "strstream": "cpp",
+          "codecvt": "cpp",
+          "csignal": "cpp",
+          "source_location": "cpp",
+          "*.in": "cpp"
+        },
+        "terminal.integrated.stickyScroll.enabled": false,
+        "terminal.integrated.minimumContrastRatio": 1
+      }
     }
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "mounts": [
+    "source=${env:HOME}/.gitconfig,target=/home/hydrolib/.gitconfig,type=bind,consistency=cached"
+  ]
 }
