@@ -29,12 +29,16 @@ RUN wget -q https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/
     && cp -s /opt/xpack-arm-none-eabi-gcc-${GCC_ARM_VERSION}/bin/* /usr/local/bin/ \
     && ln -s /opt/xpack-arm-none-eabi-gcc-${GCC_ARM_VERSION}/arm-none-eabi/include /usr/include/newlib
 
-RUN wget https://builds.renode.io/renode-1.16.1+20260727gita485ae40b.linux-portable.tar.gz \
-    && mkdir /opt/renode \
-    && tar -xf renode-1.16.1+20260727gita485ae40b.linux-portable.tar.gz -C /opt/renode --strip-components=1 \
-    && chown -R ${USERNAME} /opt/renode \
+RUN echo "Скачивание стабильного Renode с GitHub..." \
+    && apt-get update && apt-get install -y curl tar \
+    && mkdir -p /opt/renode \
+    && curl -fSL "https://github.com" -o /tmp/renode.tar.gz \
+    && tar -xf /tmp/renode.tar.gz -C /opt/renode --strip-components=1 \
+    && chown -R ${USERNAME}:${USERNAME} /opt/renode \
     && ln -s /opt/renode/renode /usr/local/bin/renode \
-    && rm renode-1.16.1+20260727gita485ae40b.linux-portable.tar.gz
+    && rm /tmp/renode.tar.gz \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "Установка Renode успешно завершена!"
 
 ENV PYRENODE_PATH=/opt/renode/renode
 
