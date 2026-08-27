@@ -8,8 +8,6 @@
 #include "ADS1220.hpp"
 #include "pressure_processing.hpp"
 
-
-namespace {
 constinit hydrv::GPIO::GPIOLow rxPin(hydrv::GPIO::GPIOLow::GPIOA_port, 10, hydrv::GPIO::GPIOLow::GPIO_UART_RX);
 
 constinit hydrv::GPIO::GPIOLow txPin(hydrv::GPIO::GPIOLow::GPIOA_port, 9, hydrv::GPIO::GPIOLow::GPIO_UART_TX);
@@ -21,11 +19,13 @@ constexpr hydrv::UART::UARTLow::UARTPreset kUsart1Preset{
 };
 
 constinit hydrv::RS485::RS485<255, 255> rs485(kUsart1Preset, rxPin, txPin, directionPin, 7);
+
 class Logger
 {
 public:
     Logger() = default;
 };
+
 Logger logger;
 hydrolib::bus::datalink::StreamManager streamManager(1, rs485, logger);
 hydrolib::bus::datalink::Stream busStream(streamManager, 2);
@@ -37,7 +37,6 @@ ADS1220 externalAdc{ hspi1, SPI1_NSS_GPIO_Port, SPI1_NSS_Pin };
 PressureProcessor pressureProcessor;
 
 constexpr int kDepthBusAddress = 0;
-} // namespace
 
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -78,7 +77,6 @@ int main(void)
         }
 
         if (not externalAdc.IsMeasurementInProgress()) {
-            // A failed SPI start is retried on the next main-loop iteration.
             (void)externalAdc.StartMeasurement(ADS1220::Channel::Pressure);
         }
     }

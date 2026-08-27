@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -35,7 +36,7 @@ private:
     static constexpr uint8_t kReadDataCommand      = 0x10;
     static constexpr uint8_t kWriteRegisterCommand = 0x40;
 
-    // AIN3/AVSS and AIN2/AVSS, gain 1, PGA bypassed.
+    // AIN3/AVSS and AIN2/AVSS, gain 1, PGA bypassed
     static constexpr uint8_t kPressureRegister0    = 0xB1;
     static constexpr uint8_t kTemperatureRegister0 = 0xA1;
 
