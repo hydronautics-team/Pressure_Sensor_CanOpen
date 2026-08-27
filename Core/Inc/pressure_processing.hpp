@@ -1,112 +1,98 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "main.h"
+#include <cstdint>
 #include <optional>
 
-#ifdef __cplusplus
-}
-#endif
-
-class PressureProcess {
+class PressureProcessor
+{
 public:
-  void process(int32_t adc_value_) {
-    adcVoltage_ = adcToVoltageMv(adc_value_);
-    adcPascals_ = voltageToPascals(adcVoltage_);
-    if (isFirst) {
-      atmospheric_pascals_ = adcPascals_;
-      isFirst = false;
-    }
-    depthMm_ = pascalsToDepthMm(adcPascals_, atmospheric_pascals_);
-  }
+    bool Process(int32_t adcValue) noexcept
+    {
+        if (adcValue < 0 or adcValue > kAdcMaximum) {
+            InvalidateMeasurement();
+            return false;
+        }
 
-  std::optional<uint32_t> getDepthMm() const noexcept {
-    if (dataIsValidate) {
-      return depthMm_;
+        const uint32_t voltageMillivolts = AdcToMillivolts(static_cast<uint32_t>(adcValue));
+        const uint32_t pressurePascals   = MillivoltsToPascals(voltageMillivolts);
+
+        if (not atmosphericPressurePascals_.has_value()) {
+            atmosphericPressurePascals_ = pressurePascals;
+        }
+
+        voltageMillivolts_ = voltageMillivolts;
+        pressurePascals_   = pressurePascals;
+        depthMillimeters_  = PascalsToDepthMillimeters(pressurePascals, atmosphericPressurePascals_.value());
+        return true;
     }
-    return std::nullopt;
-  }
-  std::optional<uint32_t> getPressurePascals() const noexcept {
-    if (dataIsValidate) {
-      return adcPascals_;
+
+    [[nodiscard]] std::optional<uint32_t> DepthMillimeters() const noexcept
+    {
+        return depthMillimeters_;
     }
-    return std::nullopt;
-  }
-  std::optional<uint32_t> getVoltageADC() const noexcept {
-    if (dataIsValidate) {
-      return adcVoltage_;
+
+    [[nodiscard]] std::optional<uint32_t> PressurePascals() const noexcept
+    {
+        return pressurePascals_;
     }
-    return std::nullopt;
-  }
+
+    [[nodiscard]] std::optional<uint32_t> VoltageMillivolts() const noexcept
+    {
+        return voltageMillivolts_;
+    }
 
 private:
-  bool dataIsValidate = true;
-  bool isFirst = true;
-  uint32_t atmospheric_pascals_ = 0;
-  uint32_t adcVoltage_ = 0;
-  uint32_t adcPascals_ = 0;
-  uint32_t depthMm_ = 0;
+    // Transfer function for a 0.5...4.5 V, 0...300 PSI pressure sensor.
+    static constexpr uint32_t kReferenceVoltageMillivolts = 5000;
+    static constexpr int32_t kAdcMaximum                  = 8'388'607;
+    static constexpr uint32_t kSensorMinimumMillivolts    = 500;
+    static constexpr uint32_t kSensorMaximumMillivolts    = 4500;
+    static constexpr uint32_t kSensorSpanMillivolts       = kSensorMaximumMillivolts - kSensorMinimumMillivolts;
+    static constexpr uint32_t kMaximumPressurePsi         = 300;
+    static constexpr uint32_t kPascalsPerPsi              = 6895;
+    static constexpr uint32_t kMaximumPressurePascals     = kMaximumPressurePsi * kPascalsPerPsi;
+    static constexpr uint32_t kWaterDensityTimesGravity   = 9800;
 
-  // константы преобразований для датчика 300 PSI с внешним 24-битным АЦП
+    std::optional<uint32_t> atmosphericPressurePascals_;
+    std::optional<uint32_t> voltageMillivolts_;
+    std::optional<uint32_t> pressurePascals_;
+    std::optional<uint32_t> depthMillimeters_;
 
-  // VREF = 5V (5000 мВ)
-  uint32_t VREF_MV = 5000u;
-
-  // максимальное значение 24-битного АЦП (2^23 - 1) с учетом его биполярности
-  uint32_t ADC_MAX_24BIT = 8388607u;
-
-  // диапазон измерения: 0...300 PSI
-  // 1 PSI = 6894.757 Па
-  uint64_t PSI_TO_PASCAL = 6895u;
-
-  uint64_t MAX_PRESSURE_PSI = 300u;
-  uint32_t MAX_PRESSURE_PASCAL =
-      MAX_PRESSURE_PSI * PSI_TO_PASCAL; // 2,068,500 Па
-
-  // выходной сигнал датчика: 0.5...4.5V
-  // 0.5V = 0 PSI, 4.5V = 300 PSI
-  uint32_t V_MIN_MV = 500u;                 // 0.5V
-  uint32_t V_MAX_MV = 4500u;                // 4.5V
-  uint32_t V_SPAN_MV = V_MAX_MV - V_MIN_MV; // 4000 мВ
-
-  // перевод показаний АЦП в милливольты (мВ) без учета атмосферного adc_zero
-  uint32_t adcToVoltageMv(int32_t adc_value) noexcept {
-    return static_cast<uint32_t>((static_cast<uint64_t>(adc_value) * VREF_MV) /
-                                 ADC_MAX_24BIT);
-  }
-
-  // перевод напряжения (мВ) в Паскали (Па)
-  uint32_t voltageToPascals(uint32_t voltage_mv) noexcept {
-    if (voltage_mv >= V_MAX_MV) {
-      return MAX_PRESSURE_PASCAL;
+    void InvalidateMeasurement() noexcept
+    {
+        voltageMillivolts_.reset();
+        pressurePascals_.reset();
+        depthMillimeters_.reset();
     }
 
-    // чистый полезный сигнал (0...4000 мВ)
-    uint32_t active_voltage = voltage_mv - V_MIN_MV;
-
-    // паскали = (active_voltage * 300 PSI * 6895 Па) / 4000 мВ
-    uint64_t numerator = static_cast<uint64_t>(active_voltage) *
-                         MAX_PRESSURE_PSI * PSI_TO_PASCAL;
-    uint32_t pascals = static_cast<uint32_t>(numerator / V_SPAN_MV);
-
-    return pascals;
-  }
-
-  // перевод паскалей (Па) в глубину (в миллиметрах водного столба)
-  // формула: глубина_мм = паскали / (плотность_воды * g)
-  uint32_t pascalsToDepthMm(uint32_t current_pascals,
-                            uint32_t atmospheric_pascals) noexcept {
-    if (current_pascals <= atmospheric_pascals) {
-      return 0u;
+    static uint32_t AdcToMillivolts(uint32_t adcValue) noexcept
+    {
+        const uint64_t scaledVoltage = static_cast<uint64_t>(adcValue) * kReferenceVoltageMillivolts;
+        return static_cast<uint32_t>(scaledVoltage / static_cast<uint32_t>(kAdcMaximum));
     }
-    // давление воды
-    uint32_t water_pascals = current_pascals - atmospheric_pascals;
 
-    uint64_t numerator = static_cast<uint64_t>(water_pascals) * 1000u;
-    uint32_t depthMm = static_cast<uint32_t>(numerator / 9800u);
-    return depthMm;
-  }
+    static uint32_t MillivoltsToPascals(uint32_t voltageMillivolts) noexcept
+    {
+        if (voltageMillivolts <= kSensorMinimumMillivolts) {
+            return 0;
+        }
+
+        if (voltageMillivolts >= kSensorMaximumMillivolts) {
+            return kMaximumPressurePascals;
+        }
+
+        const uint32_t activeVoltage  = voltageMillivolts - kSensorMinimumMillivolts;
+        const uint64_t scaledPressure = static_cast<uint64_t>(activeVoltage) * kMaximumPressurePascals;
+        return static_cast<uint32_t>(scaledPressure / kSensorSpanMillivolts);
+    }
+
+    static uint32_t PascalsToDepthMillimeters(uint32_t pressurePascals, uint32_t atmosphericPressurePascals) noexcept
+    {
+        if (pressurePascals <= atmosphericPressurePascals) {
+            return 0;
+        }
+
+        const uint32_t waterPressurePascals = pressurePascals - atmosphericPressurePascals;
+        return static_cast<uint32_t>(static_cast<uint64_t>(waterPressurePascals) * 1000 / kWaterDensityTimesGravity);
+    }
 };
