@@ -1,7 +1,5 @@
 #include "ADS1220.hpp"
 
-#include <array>
-
 ADS1220::ADS1220(SPI_HandleTypeDef& spi, GPIO_TypeDef* chipSelectPort, uint16_t chipSelectPin) noexcept
     : spi_{ spi }
     , chipSelectPort_{ chipSelectPort }
@@ -21,9 +19,9 @@ bool ADS1220::Init() noexcept
 
     const std::array<uint8_t, kRegisterCount> configuration{
         kPressureRegister0,
-        0x00, // Normal mode, 20 samples per second, single-shot conversion.
-        0x40, // External reference on REFP0/REFN0.
-        0x00, // Dedicated active-low DRDY output enabled.
+        0x00, // Normal mode, 20 samples per second, single-shot conversion
+        0x40, // External reference on REFP0/REFN0
+        0x00, // Dedicated active-low DRDY output enabled
     };
 
     return WriteRegisters(0, configuration.data(), configuration.size());
@@ -148,4 +146,3 @@ uint8_t ADS1220::Register0For(Channel channel) noexcept
     }
     return kPressureRegister0;
 }
-

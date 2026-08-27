@@ -42,9 +42,9 @@ public:
     }
 
 private:
-    // Transfer function for a 0.5...4.5 V, 0...300 PSI pressure sensor.
+    // Transfer function for a 0.5...4.5 V, 0...300 PSI pressure sensor
     static constexpr uint32_t kReferenceVoltageMillivolts = 5000;
-    static constexpr int32_t kAdcMaximum                  = 8'388'607;
+    static constexpr int32_t kAdcMaximum                  = 8388607;
     static constexpr uint32_t kSensorMinimumMillivolts    = 500;
     static constexpr uint32_t kSensorMaximumMillivolts    = 4500;
     static constexpr uint32_t kSensorSpanMillivolts       = kSensorMaximumMillivolts - kSensorMinimumMillivolts;

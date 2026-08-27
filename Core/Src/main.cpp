@@ -64,10 +64,7 @@ int main(void)
         }
 
         if (not externalAdc.IsMeasurementInProgress()) {
-            // A failed SPI start is retried on the next main-loop iteration.
-            if (not externalAdc.StartMeasurement(ADS1220::Channel::Pressure)) {
-                canopenNode.MarkMeasurementInvalid();
-            }
+            (void)externalAdc.StartMeasurement(ADS1220::Channel::Pressure);
         }
     }
 }
