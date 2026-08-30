@@ -1,3 +1,7 @@
 [submodule "Drivers/CANoopEn"]
 	path = Drivers/CANoopEn
 	url = https://github.com/xyntos-ch/CANoopEn.git
+[submodule "third_party/CanOpenDef"]
+	path = third_party/CanOpenDef
+	url = https://github.com/Svvyppy/CanOpenDef.git
+	branch = develop
